@@ -11,7 +11,7 @@ classDiagram
     ConfirmationMailMailer ..> ConfirmationMailFactory: uses
 ```
 
-ConfirmationMailMailer implemented as:
+ConfirmationMailMailer has been reimplemented as:
 
 ```rust
 pub struct ConfirmationMailMailer<TE, T, M>
@@ -39,13 +39,7 @@ where
     }
 
     fn create_message_for(&self, user: User) -> Message {
-        let subject = self.translator.translate("Confirm your mail address");
-        let template_ctx =
-            HashMap::from([("confirmation_code".to_owned(), user.get_confirmation_code())]);
-        let body = self
-            .templating_engine
-            .render("confirmation_mail.html.tpl", template_ctx);
-        let mut message = Message::new(subject, body);
+        let mut message = self.confirmation_mail_factory.create_message_for(&user);
         message.set_to(user.get_email_address().to_owned());
         message
     }
@@ -56,9 +50,35 @@ where
 }
 ```
 
-has two responsibilities:
+and now delegates the responsibility of creating the confirmation mail to `ConfirmationMailFactory` which is implemented as:
 
--   create a confirmation mail and
--   send the mail.
+```rust
+pub struct ConfirmationMailFactory<TE, T>
+where
+    TE: TemplatingEngine,
+    T: Translator,
+{
+    templating_engine: TE,
+    translator: T,
+}
 
-This violates the SRP.
+impl<TE, T> ConfirmationMailFactory<TE, T>
+where
+    TE: TemplatingEngine,
+    T: Translator,
+{
+    pub fn new(templating_engine: TE, translator: T) -> Self { ... }
+
+    pub fn create_message_for(&self, user: &User) -> Message {
+        let subject = self.translator.translate("Confirm your mail address");
+        let template_ctx =
+            HashMap::from([("confirmation_code".to_owned(), user.get_confirmation_code())]);
+        let body = self
+            .templating_engine
+            .render("confirmation_mail.html.tpl", template_ctx);
+        let mut message = Message::new(subject, body);
+        message.set_to(user.get_email_address().to_owned());
+        message
+    }
+}
+```
